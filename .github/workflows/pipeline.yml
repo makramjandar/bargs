@@ -1,0 +1,112 @@
+name: pipeline
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "README.md"
+
+jobs:
+  test-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print bash version
+        run: |
+          bash --version
+      - uses: actions/checkout@v2
+      - name: Lint with shellcheck
+        uses: reviewdog/action-shellcheck@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          reporter: github-check
+          path: "."
+          pattern: "bargs.sh"
+          exclude: "./.git/*"
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y bsdmainutils
+      - name: Test with bash script
+        run: |
+          bash tests.sh
+
+  test-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Print bash version
+        run: |
+          bash --version
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install bash util-linux
+      - name: Test with bash script
+        run: |
+          bash tests.sh
+
+  test-wsl:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        shell: powershell
+        run: |
+          $url = "http://bargs.link/utils/dos2unix-7.4.1-win64.zip"
+          $output = ".\dos2unix.zip"
+          (New-Object System.Net.WebClient).DownloadFile($url, $output)
+          Expand-Archive .\dos2unix.zip .\dos2unix
+          .\dos2unix\bin\dos2unix.exe bargs.sh bargs_vars example.sh tests.sh
+
+          $url = "https://aka.ms/wsl-ubuntu-1804"
+          $output = ".\Ubuntu.zip"
+          (New-Object System.Net.WebClient).DownloadFile($url, $output)
+          Expand-Archive .\Ubuntu.zip .\Ubuntu
+          Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux
+          .\Ubuntu\ubuntu1804.exe install --root
+
+      - name: Test with bash script
+        shell: powershell
+        run: |
+          wsl -u root -d Ubuntu-18.04 -- source ./tests.sh
+
+  alpine:
+    needs: [test-ubuntu, test-macos, test-wsl]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build and push
+        run: |
+          export DOCKER_TAG="unfor19/bargs:example"
+          docker build . --file Dockerfile.example --tag "${DOCKER_TAG}"
+          echo '${{ secrets.DOCKER_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker push "${DOCKER_TAG}"
+
+  pipeline:
+    needs: [test-ubuntu, test-macos, test-wsl]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: |
+          bash scripts/app_build.sh
+      - name: Upload to S3 bucket
+        uses: tpaschalis/s3-sync-action@master
+        with:
+          args: --acl public-read --recursive
+        env:
+          AWS_S3_BUCKET: bargs.link
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: "eu-west-1"
+          FILE: "dist"
+      - name: Invalidate AWS CloudFront distribution
+        uses: awact/cloudfront-action@master
+        env:
+          SOURCE_PATH: "/commits"
+          AWS_REGION: "eu-west-1"
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DISTRIBUTION_ID: ${{ secrets.DISTRIBUTION_ID }}

@@ -1,0 +1,67 @@
+---
+name=person_name
+short=n
+description=What is your name?
+default="Willy Wonka"
+---
+name=age
+short=a
+description=How old are you?
+prompt=true
+confirmation=true
+---
+name=gender
+short=g
+description=male or female?
+options=male female
+prompt=true
+---
+name=location
+short=l
+description=Where do you live?
+default="chocolate factory"
+---
+name=favorite_food
+short=f
+allow_empty=true
+options=chocolate pizza
+description=chocolate or pizza?
+---
+name=secret
+short=s
+default=!@#%^&*?/.,[]{}+-|
+description=special characters
+---
+name=language
+short=lang
+default=$LANG
+description=default value can be a variable
+---
+name=password
+short=p
+prompt=true
+hidden=true
+confirmation=true
+description=What is your password?
+---
+name=happy
+short=hp
+flag=true
+description=Flag for indicating that you are happy
+---
+name=ci
+short=ci
+flag=true
+description=Flag for indicating it is a CI/CD process
+---
+name=username
+short=un
+allow_env_var=true
+description=Username fetched from environment variable
+default=willywonka
+---
+name=bargs
+description=bash example.sh -n Willy --gender male -a 99
+default=irrelevant
+---
+---

@@ -1,0 +1,6 @@
+.*
+!.github*
+!.*ignore*
+dist/
+*.wiki
+*.bak
